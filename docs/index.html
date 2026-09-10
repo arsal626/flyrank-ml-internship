@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Refresh Opportunity Scoring for Search Intelligence</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--ink:#172033;--muted:#667085;--line:#e4e7ec;--accent:#4f46e5}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.65}
+.wrap{max-width:1160px;margin:auto;padding:0 22px}header{padding:80px 0 60px;background:linear-gradient(135deg,#111827,#312e81);color:#fff}
+.eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:12px;font-weight:700;opacity:.75}h1{font-size:clamp(40px,6vw,68px);line-height:1.05;margin:16px 0 20px;max-width:950px}
+.subtitle{font-size:20px;max-width:820px;color:#dbe3ff}section{padding:54px 0}h2{font-size:30px;margin:0 0 16px}h3{margin:24px 0 8px}
+p{max-width:900px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin:28px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:0 4px 18px rgba(16,24,40,.04)}
+.metric{font-size:34px;font-weight:800;line-height:1.1}.label{color:var(--muted);font-size:14px;margin-top:6px}
+.highlight{background:#eef2ff;border-left:4px solid var(--accent);padding:18px 20px;border-radius:10px;margin:22px 0}
+.scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line)}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;font-size:13px}th{background:#f9fafb}
+.barwrap{background:#eaecf0;border-radius:999px;height:11px;overflow:hidden}.bar{height:100%;background:var(--accent);border-radius:999px}
+.small{font-size:13px;color:var(--muted)}a{color:var(--accent);font-weight:650}code{background:#f2f4f7;padding:2px 6px;border-radius:5px}
+footer{padding:40px 0 70px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+<div class="eyebrow">FlyRank ML Internship · Capstone Research Paper · By Arsal Naveed</div>
+<h1>Refresh Opportunity Scoring for Search Intelligence</h1>
+<div class="subtitle">A leakage-aware machine-learning ranking system for prioritizing pages for content-refresh review.</div>
+</div></header>
+
+<section><div class="wrap"><h2>Abstract</h2>
+<p><strong>Question:</strong> Can historical search and content signals rank pages that are most worth reviewing for a potential content refresh? <strong>Method:</strong> A leakage-aware Random Forest was trained on 21 raw features, including historical performance, content attributes, and April-to-May trend signals, using a client-level holdout split. <strong>Target:</strong> a refresh opportunity was defined as a page whose June impressions were at least 90% below its April–May historical impression level. <strong>Result:</strong> on the validation evaluation, the improved model achieved Precision@20 of 0.30 and Precision@50 of 0.46, compared with 0.15 and 0.22 for the hand-written baseline. <strong>Use:</strong> the output is a prioritization and decision-support system for human review, not a causal claim about why visibility changed or proof that refreshing a page will recover performance.</p>
+</div></section>
+
+<section><div class="wrap"><h2>1. Introduction / Problem Statement</h2>
+<p>Content teams can have many pages that deserve attention while review capacity is limited. This capstone addresses a practical Search Intelligence decision: <strong>which pages should be placed near the top of a content-refresh review queue?</strong></p>
+<p>The project uses the <strong>Refresh / Content Opportunity Scoring</strong> lane. Instead of treating every declining page equally, the system combines multiple signals and produces a ranked list with reason codes and recommended actions.</p>
+<div class="highlight"><strong>Decision supported:</strong> prioritize pages for human investigation and possible refresh, while keeping the ranking explicitly directional and decision-support oriented.</div>
+</div></section>
+
+<section><div class="wrap"><h2>2. Data</h2>
+<p>The analysis uses the gated FlyRank internship warehouse release accessed through Hugging Face. The capstone aggregates daily content-performance data for April, May, and June 2026 and joins it with content-level attributes.</p>
+<div class="grid">
+<div class="card"><div class="metric">389,032</div><div class="label">Rows in the capstone dataset</div></div>
+<div class="card"><div class="metric">52</div><div class="label">Unique clients represented by hashed IDs</div></div>
+<div class="card"><div class="metric">21</div><div class="label">Raw model features</div></div>
+<div class="card"><div class="metric">90%</div><div class="label">Impression-decline threshold for the target</div></div>
+</div>
+<h3>Tables and windows</h3>
+<ul>
+<li><code>fact_content_daily_performance</code>: daily search and analytics performance, aggregated over April–May for historical signals and June for the outcome window.</li>
+<li><code>dim_content</code>: content attributes such as content type, search volume, competition, CPC, intent, backlinks, category count, character count, and word count.</li>
+<li>April–May performance was used to construct historical and trend features; June impressions were used to define the refresh-opportunity outcome.</li>
+</ul>
+<h3>Exclusions and public-safe handling</h3>
+<p>Pages without positive impressions in both the historical and June windows were excluded from the modeling set because the percentage-change target would not be meaningful for zero historical impressions or zero June impressions. Client and content identifiers are represented using hashes. No client names, domains, private queries, credentials, or raw exports are exposed here.</p>
+</div></section>
+
+<section><div class="wrap"><h2>3. Methodology</h2>
+<h3>Features</h3><p>The model uses 19 numeric features and 2 categorical features. Numeric signals include historical impressions, clicks, pageviews, sessions, engaged sessions, AI sessions, average position, CTR, engagement rate, AI-session share, search volume, competition, CPC, backlinks, category count, character count, word count, and two log-transformed April-to-May change features. The categorical features are content type and main intent.</p>
+<h3>Label</h3><p><code>is_refresh_opportunity</code> equals 1 when impression change from the historical period to June is ≤ −90%, and 0 otherwise.</p>
+<h3>Model</h3><p>The improved model is a Random Forest classifier with 150 trees, maximum depth 8, minimum samples per leaf 20, balanced class weighting, and random seed 42. Numeric values use median imputation; categorical values use most-frequent imputation and one-hot encoding.</p>
+<h3>Validation and leakage control</h3><p>The model uses a client-level holdout: 52 unique clients were split into 41 training clients and 11 validation clients. This prevents pages from the same client appearing across both groups. June outcome information is reserved for target construction and evaluation rather than used as a model feature.</p>
+<h3>Baseline</h3><p>The hand-written baseline provides a simple rule-based comparison. Both systems are evaluated on the same validation ranking task using Precision@20 and Precision@50.</p>
+</div></section>
+
+<section><div class="wrap"><h2>4. Results</h2><p>The improved model produced a stronger top-ranked review queue than the hand-written baseline on the same validation evaluation.</p>
+<div class="grid">
+<div class="card"><div class="metric">0.30</div><div class="label">Improved ML Precision@20 · 6 positives</div></div>
+<div class="card"><div class="metric">0.46</div><div class="label">Improved ML Precision@50 · 23 positives</div></div>
+<div class="card"><div class="metric">0.15</div><div class="label">Baseline Precision@20 · 3 positives</div></div>
+<div class="card"><div class="metric">0.22</div><div class="label">Baseline Precision@50 · 11 positives</div></div>
+</div>
+<div class="card"><h3>Precision@K comparison</h3>
+<div style="margin:16px 0"><div style="display:flex;justify-content:space-between"><span>Baseline @20</span><b>0.15</b></div><div class="barwrap"><div class="bar" style="width:30%"></div></div></div>
+<div style="margin:16px 0"><div style="display:flex;justify-content:space-between"><span>Improved ML @20</span><b>0.30</b></div><div class="barwrap"><div class="bar" style="width:60%"></div></div></div>
+<div style="margin:16px 0"><div style="display:flex;justify-content:space-between"><span>Baseline @50</span><b>0.22</b></div><div class="barwrap"><div class="bar" style="width:44%"></div></div></div>
+<div style="margin:16px 0"><div style="display:flex;justify-content:space-between"><span>Improved ML @50</span><b>0.46</b></div><div class="barwrap"><div class="bar" style="width:92%"></div></div></div>
+</div>
+<div class="scroll" style="margin-top:22px"><table><thead><tr><th>Method</th><th>Precision@20</th><th>Precision@50</th><th>Improvement @20</th><th>Improvement @50</th></tr></thead>
+<tbody><tr><td>Hand-written baseline</td><td>0.15</td><td>0.22</td><td>—</td><td>—</td></tr><tr><td><strong>Improved ML model</strong></td><td><strong>0.30</strong></td><td><strong>0.46</strong></td><td><strong>+15 pp</strong></td><td><strong>+24 pp</strong></td></tr></tbody></table></div>
+<h3>Additional validation metrics</h3><table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>
+<tr><td>ROC-AUC</td><td>0.742789</td></tr><tr><td>Average Precision</td><td>0.407688</td></tr><tr><td>Precision @ threshold 0.5</td><td>0.361275</td></tr><tr><td>Recall @ threshold 0.5</td><td>0.751588</td></tr><tr><td>F1 @ threshold 0.5</td><td>0.487985</td></tr>
+</tbody></table>
+<h3>Ranking lift</h3><p>Validation prevalence was 0.224. Reported lift was 1.34× at @20 and 2.06× at @50 for the improved model, versus 0.67× and 0.98× for the baseline. The ranking therefore concentrated more labeled opportunities near the top than the overall validation prevalence.</p>
+</div></section>
+
+<section><div class="wrap"><h2>5. Model Signals</h2><p>The strongest feature importance values came from April-to-May log impression change, historical impressions, historical clicks, April-to-May log click change, CTR, character count, word count, and historical average position.</p>
+<div class="card"><div style="display:grid;gap:12px">
+<div><div style="display:flex;justify-content:space-between"><span>Log impression change (Apr–May)</span><b>0.3047</b></div><div class="barwrap"><div class="bar" style="width:100%"></div></div></div>
+<div><div style="display:flex;justify-content:space-between"><span>Historical impressions</span><b>0.1807</b></div><div class="barwrap"><div class="bar" style="width:59%"></div></div></div>
+<div><div style="display:flex;justify-content:space-between"><span>Historical clicks</span><b>0.1160</b></div><div class="barwrap"><div class="bar" style="width:38%"></div></div></div>
+<div><div style="display:flex;justify-content:space-between"><span>Log click change (Apr–May)</span><b>0.0713</b></div><div class="barwrap"><div class="bar" style="width:23%"></div></div></div>
+<div><div style="display:flex;justify-content:space-between"><span>Historical CTR</span><b>0.0711</b></div><div class="barwrap"><div class="bar" style="width:23%"></div></div></div>
+<div><div style="display:flex;justify-content:space-between"><span>Character count</span><b>0.0606</b></div><div class="barwrap"><div class="bar" style="width:20%"></div></div></div>
+<div><div style="display:flex;justify-content:space-between"><span>Word count</span><b>0.0551</b></div><div class="barwrap"><div class="bar" style="width:18%"></div></div></div>
+<div><div style="display:flex;justify-content:space-between"><span>Historical average position</span><b>0.0532</b></div><div class="barwrap"><div class="bar" style="width:17%"></div></div></div>
+</div></div>
+<p class="small">Feature importance is model-specific and should not be interpreted as causal evidence.</p></div></section>
+
+<section><div class="wrap"><h2>6. Limitations & Honest Framing</h2>
+<ul><li>The model ranks observed historical patterns; it does not establish causality.</li><li>The ≥90% impression-decline label is a project-defined operational definition, not a universal definition of content quality.</li><li>Random Forest feature importance does not prove that changing a feature will change future search performance.</li><li>Validation uses a client-level holdout from the available warehouse window, so performance may differ on other releases, periods, or clients.</li><li>Some features contain missing values and are handled through preprocessing.</li></ul>
+<div class="highlight"><strong>Interpretation:</strong> results are observed and directional. The system is intended for prioritization and human review, not automatic content changes or claims about Google's ranking algorithm.</div>
+</div></section>
+
+<section><div class="wrap"><h2>7. Ranked Recommendations</h2>
+<p>The final artifact is an anonymized top-50 validation ranking. Reason codes translate observed signals into an operational review queue.</p>
+<div class="scroll"><table><thead><tr><th>Rank</th><th>Content ID</th><th>Score</th><th>Reason</th><th>Action</th><th>Hist. impressions</th><th>CTR</th><th>Avg position</th><th>Change</th></tr></thead><tbody>
+<tr><td>1</td><td>content_86e483779bb090fc</td><td>0.8883</td><td>Review for other signals</td><td>Monitor</td><td>69</td><td>0.000000</td><td>30.50</td><td>-37.7%</td></tr><tr><td>2</td><td>content_78d762622e83b434</td><td>0.8877</td><td>Strong impression decline</td><td>Refresh review</td><td>201</td><td>0.000000</td><td>25.23</td><td>-87.6%</td></tr><tr><td>3</td><td>content_3d149327d5609856</td><td>0.8857</td><td>Strong impression decline</td><td>Refresh review</td><td>39</td><td>0.000000</td><td>34.98</td><td>-82.1%</td></tr><tr><td>4</td><td>content_542589b54e60a053</td><td>0.8810</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>4315</td><td>0.000232</td><td>28.17</td><td>-93.2%</td></tr><tr><td>5</td><td>content_a3213b65f8435968</td><td>0.8806</td><td>Strong impression decline</td><td>Refresh review</td><td>846</td><td>0.000000</td><td>18.92</td><td>-82.3%</td></tr><tr><td>6</td><td>content_51adfdf993162378</td><td>0.8800</td><td>Moderate impression decline</td><td>Monitor and investigate</td><td>65</td><td>0.000000</td><td>19.88</td><td>-53.8%</td></tr><tr><td>7</td><td>content_1d97539f5d23979f</td><td>0.8782</td><td>Strong impression decline</td><td>Refresh review</td><td>251</td><td>0.000000</td><td>13.52</td><td>-89.2%</td></tr><tr><td>8</td><td>content_c52d09daf7a1a4c9</td><td>0.8771</td><td>Moderate impression decline</td><td>Monitor and investigate</td><td>24</td><td>0.000000</td><td>27.19</td><td>-79.2%</td></tr><tr><td>9</td><td>content_f57566c832af4c38</td><td>0.8747</td><td>Strong impression decline</td><td>Refresh review</td><td>39</td><td>0.000000</td><td>13.50</td><td>-87.2%</td></tr><tr><td>10</td><td>content_b658a4b822aeec73</td><td>0.8724</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>1066</td><td>0.000000</td><td>23.13</td><td>-90.3%</td></tr><tr><td>11</td><td>content_d0e8885af33cdaad</td><td>0.8710</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>3588</td><td>0.000000</td><td>36.83</td><td>-98.1%</td></tr><tr><td>12</td><td>content_7f68db2067bcadf6</td><td>0.8701</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>59</td><td>0.000000</td><td>11.27</td><td>-96.6%</td></tr><tr><td>13</td><td>content_0e024e164d9ea887</td><td>0.8698</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>60</td><td>0.000000</td><td>47.10</td><td>-90.0%</td></tr><tr><td>14</td><td>content_3f9502284b868a5e</td><td>0.8678</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>25</td><td>0.000000</td><td>13.00</td><td>-92.0%</td></tr><tr><td>15</td><td>content_f47869dfbd15d6e2</td><td>0.8672</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>107</td><td>0.000000</td><td>44.71</td><td>-99.1%</td></tr><tr><td>16</td><td>content_337a32fabba0ebae</td><td>0.8653</td><td>Review for other signals</td><td>Monitor</td><td>28</td><td>0.000000</td><td>11.76</td><td>200.0%</td></tr><tr><td>17</td><td>content_9d7af62b97afc72b</td><td>0.8641</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>113</td><td>0.000000</td><td>30.28</td><td>-97.3%</td></tr><tr><td>18</td><td>content_c0e98003f2c8a887</td><td>0.8640</td><td>Strong impression decline</td><td>Refresh review</td><td>37</td><td>0.000000</td><td>55.32</td><td>-83.8%</td></tr><tr><td>19</td><td>content_46789f53a3b45cf7</td><td>0.8621</td><td>Strong impression decline</td><td>Refresh review</td><td>220</td><td>0.000000</td><td>24.00</td><td>-85.0%</td></tr><tr><td>20</td><td>content_aa4db12937cb289a</td><td>0.8613</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>175</td><td>0.000000</td><td>9.22</td><td>-96.0%</td></tr><tr><td>21</td><td>content_4cd4d876cddb63c4</td><td>0.8611</td><td>Moderate impression decline</td><td>Monitor and investigate</td><td>28</td><td>0.000000</td><td>25.70</td><td>-78.6%</td></tr><tr><td>22</td><td>content_70a624e93b88b02e</td><td>0.8608</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>20</td><td>0.000000</td><td>24.17</td><td>-95.0%</td></tr><tr><td>23</td><td>content_58e143f02294526a</td><td>0.8560</td><td>Moderate impression decline</td><td>Monitor and investigate</td><td>117</td><td>0.000000</td><td>10.61</td><td>-53.0%</td></tr><tr><td>24</td><td>content_145bbdb1286836a0</td><td>0.8536</td><td>Moderate impression decline</td><td>Monitor and investigate</td><td>79</td><td>0.000000</td><td>11.39</td><td>-73.4%</td></tr><tr><td>25</td><td>content_55d7278e0ef2067d</td><td>0.8520</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>200</td><td>0.000000</td><td>32.73</td><td>-92.0%</td></tr><tr><td>26</td><td>content_eef58efd153f6698</td><td>0.8511</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>71</td><td>0.000000</td><td>23.51</td><td>-90.1%</td></tr><tr><td>27</td><td>content_ec750f0d6ca657be</td><td>0.8506</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>27</td><td>0.000000</td><td>28.58</td><td>-96.3%</td></tr><tr><td>28</td><td>content_6a498fdcb8b15280</td><td>0.8502</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>29</td><td>0.000000</td><td>15.45</td><td>-96.6%</td></tr><tr><td>29</td><td>content_20147d91ce679ebd</td><td>0.8499</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>25</td><td>0.000000</td><td>9.31</td><td>-96.0%</td></tr><tr><td>30</td><td>content_d4948e7c4b0bb098</td><td>0.8465</td><td>Review for other signals</td><td>Monitor</td><td>15</td><td>0.000000</td><td>52.80</td><td>-20.0%</td></tr><tr><td>31</td><td>content_7535835032de1b6d</td><td>0.8452</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>141</td><td>0.000000</td><td>42.71</td><td>-98.6%</td></tr><tr><td>32</td><td>content_3244e3c2e9a8d673</td><td>0.8446</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>37</td><td>0.000000</td><td>12.73</td><td>-97.3%</td></tr><tr><td>33</td><td>content_e7b128a4dfa4cf43</td><td>0.8436</td><td>Strong impression decline</td><td>Refresh review</td><td>135</td><td>0.000000</td><td>7.52</td><td>-86.7%</td></tr><tr><td>34</td><td>content_89f1adaab7b87196</td><td>0.8434</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>213</td><td>0.000000</td><td>64.77</td><td>-98.6%</td></tr><tr><td>35</td><td>content_01d929473efcc6e8</td><td>0.8426</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>23</td><td>0.000000</td><td>12.61</td><td>-91.3%</td></tr><tr><td>36</td><td>content_c1628d1c5030c7c4</td><td>0.8425</td><td>Moderate impression decline</td><td>Monitor and investigate</td><td>56</td><td>0.000000</td><td>10.36</td><td>-75.0%</td></tr><tr><td>37</td><td>content_88d33e520c7509b2</td><td>0.8404</td><td>Review for other signals</td><td>Monitor</td><td>49</td><td>0.000000</td><td>15.62</td><td>108.2%</td></tr><tr><td>38</td><td>content_921f0a579daac92c</td><td>0.8399</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>37</td><td>0.000000</td><td>8.48</td><td>-91.9%</td></tr><tr><td>39</td><td>content_717f3b70ec58811f</td><td>0.8379</td><td>Moderate impression decline</td><td>Monitor and investigate</td><td>68</td><td>0.000000</td><td>14.39</td><td>-70.6%</td></tr><tr><td>40</td><td>content_fccb4bc4d8dc610a</td><td>0.8357</td><td>Strong impression decline</td><td>Refresh review</td><td>20</td><td>0.000000</td><td>12.36</td><td>-85.0%</td></tr><tr><td>41</td><td>content_3ef2069680c58e33</td><td>0.8337</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>767</td><td>0.001304</td><td>18.93</td><td>-92.4%</td></tr><tr><td>42</td><td>content_8a1b5009b952ed96</td><td>0.8333</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>383</td><td>0.000000</td><td>52.76</td><td>-96.6%</td></tr><tr><td>43</td><td>content_c5720564044ce989</td><td>0.8333</td><td>Review for other signals</td><td>Monitor</td><td>22</td><td>0.000000</td><td>8.06</td><td>-22.7%</td></tr><tr><td>44</td><td>content_69bfcc5cf924a356</td><td>0.8331</td><td>Strong impression decline</td><td>Refresh review</td><td>36</td><td>0.000000</td><td>7.83</td><td>-86.1%</td></tr><tr><td>45</td><td>content_0f274d6f2b09a767</td><td>0.8323</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>22</td><td>0.000000</td><td>17.38</td><td>-90.9%</td></tr><tr><td>46</td><td>content_af0e900520a58461</td><td>0.8317</td><td>Severe impression decline</td><td>High-priority refresh review</td><td>20</td><td>0.000000</td><td>9.88</td><td>-90.0%</td></tr><tr><td>47</td><td>content_60dcdb454b9beda3</td><td>0.8301</td><td>Strong impression decline</td><td>Refresh review</td><td>432</td><td>0.000000</td><td>10.38</td><td>-84.3%</td></tr><tr><td>48</td><td>content_5c38a236901c92d9</td><td>0.8299</td><td>Strong impression decline</td><td>Refresh review</td><td>46</td><td>0.000000</td><td>49.00</td><td>-80.4%</td></tr><tr><td>49</td><td>content_b9870760bfe10964</td><td>0.8286</td><td>Strong impression decline</td><td>Refresh review</td><td>29</td><td>0.000000</td><td>11.07</td><td>-82.8%</td></tr><tr><td>50</td><td>content_9a89d41263e6ea4a</td><td>0.8284</td><td>Review for other signals</td><td>Monitor</td><td>11</td><td>0.000000</td><td>27.00</td><td>-45.5%</td></tr></tbody></table></div><p class="small">The table intentionally exposes only anonymized content IDs and safe aggregate metrics.</p>
+</div></section>
+
+<section><div class="wrap"><h2>8. Action Playbook</h2><div class="grid">
+<div class="card"><h3>High-priority refresh review</h3><p>Send severe-decline pages to the front of the human review queue. Investigate the page and surrounding search/content context before deciding whether a refresh is appropriate.</p></div>
+<div class="card"><h3>Refresh review</h3><p>Review strong-decline pages for stale or incomplete content, relevance, coverage, and other page-level signals before making changes.</p></div>
+<div class="card"><h3>Monitor and investigate</h3><p>Keep moderate-decline pages under observation and investigate additional signals rather than automatically refreshing.</p></div>
+</div><p>This playbook is intentionally a review workflow. It does not prescribe automatic edits or imply that a refresh will cause recovery.</p></div></section>
+
+<section><div class="wrap"><h2>9. Reproducibility</h2>
+<p>The analysis is implemented in the capstone notebook and supporting weekly notebooks in the project repository.</p>
+<ul>
+<li><a href="https://github.com/arsal626/flyrank-ml-internship" target="_blank" rel="noopener">GitHub repository</a></li>
+<li><code>work/notebooks/capstone.ipynb</code> — capstone analysis, modeling, validation, and artifacts.</li>
+<li><code>work/notebooks/</code> — weekly assignment notebooks documenting the project progression.</li>
+</ul>
+<p class="small">The public paper does not expose gated warehouse files, credentials, private queries, client names, domains, or raw exports.</p>
+</div></section>
+
+<section><div class="wrap"><h2>10. Acknowledgments & Data Credit</h2>
+<p><strong>Built on the FlyRank ML Internship dataset.</strong></p>
+<p><a href="https://flyrank.ai" target="_blank" rel="noopener">FlyRank AI</a> — data source and internship program.</p>
+</div></section>
+
+<footer><div class="wrap"><strong>Search Intelligence Capstone</strong><br>Refresh Opportunity Scoring · Public-safe research artifact</div></footer>
+</body></html>
