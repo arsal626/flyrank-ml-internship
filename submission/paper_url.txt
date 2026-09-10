@@ -1,1 +1,2 @@
 PASTE-YOUR-DEPLOYED-PAPER-URL-HERE
+https://arsal626.github.io/flyrank-ml-internship/
